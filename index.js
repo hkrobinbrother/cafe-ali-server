@@ -27,7 +27,9 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
 
-    await client.connect();
+    // optional for vercel-----
+    // await client.connect();
+    // -----
     // connect
     const userCollection = client.db("cafeDB").collection("users")
     const menuCollection = client.db("cafeDB").collection("menu")
@@ -36,84 +38,84 @@ async function run() {
     const paymentCollection = client.db("cafeDB").collection("payment")
 
     // jwt related api
-    app.post("/jwt",async(req,res)=>{
+    app.post("/jwt", async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,{
-        expiresIn:'1h'
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: '1h'
       })
-      res.send({token})
+      res.send({ token })
     })
     // middleware
 
-    const verifyToken = ( req,res,next)=>{
+    const verifyToken = (req, res, next) => {
       // console.log("inside verify token",req.headers.authorization)
-      if(!req.headers.authorization){
-        return res.status(401).send({message: "unauthorized access"});
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "unauthorized access" });
       }
       const token = req.headers.authorization.split(' ')[1]
-      jwt.verify(token,process.env.ACCESS_TOKEN_SECRET, async(err,decoded)=>{
-        if(err){
-          return res.status(401).send({message: "unauthorized access"})
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, async (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "unauthorized access" })
         }
         req.decoded = decoded;
         next()
       })
-      
+
     }
 
     // use verify admin after verifyToken
-    const verifyAdmin = async(req,res,next)=>{
+    const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = {email:email};
+      const query = { email: email };
       const user = await userCollection.findOne(query)
       const isAdmin = user?.role === 'admin';
-      if(!isAdmin){
-        return res.status(403).send({message: 'forbidden access'})
+      if (!isAdmin) {
+        return res.status(403).send({ message: 'forbidden access' })
       }
       next()
     }
 
     // users api
-    app.get("/users",verifyToken,verifyAdmin, async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await userCollection.find().toArray()
       res.send(result)
     })
 
-    app.get("/user/admin/:email", verifyToken, async(req,res)=>{
+    app.get("/user/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      if(email !== req.decoded.email){
-        return res.status(403).send({message:"forbidden access"})
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" })
       }
 
-      const query = {email: email}
+      const query = { email: email }
       const user = await userCollection.findOne(query)
       let admin = false;
-      if(user){
+      if (user) {
         admin = user?.role === 'admin'
       }
-      res.send({admin})
+      res.send({ admin })
     })
 
     app.post("/users", async (req, res) => {
       const user = req.body;
-     
+
       const result = await userCollection.insertOne(user);
       res.send(result);
 
     })
-    app.patch("/users/admin/:id",verifyToken,verifyAdmin, async (req, res) => {
+    app.patch("/users/admin/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) }
       const updateDoc = {
-        $set:{
-          role:"admin"
+        $set: {
+          role: "admin"
         }
       }
-      const result = await userCollection.updateOne(filter,updateDoc)
+      const result = await userCollection.updateOne(filter, updateDoc)
       res.send(result)
     })
 
-    app.delete("/users",verifyToken,verifyAdmin, async (req, res) => {
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
       const result = await userCollection.deleteOne(query)
@@ -125,25 +127,25 @@ async function run() {
       res.send(result)
     })
 
-    app.get("/menu/:id",async(req,res)=>{
+    app.get("/menu/:id", async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await menuCollection.findOne(query)
       res.send(result);
     })
 
-    app.post('/menu',verifyToken,verifyAdmin,async(req,res)=>{
+    app.post('/menu', verifyToken, verifyAdmin, async (req, res) => {
       const item = req.body;
       const result = await menuCollection.insertOne(item)
       res.send(result)
     })
 
-    app.patch('/menu/:id',async(req,res)=>{
+    app.patch('/menu/:id', async (req, res) => {
       const item = req.body;
       const id = req.params.id;
-      const filter = { _id: new ObjectId(id)}
+      const filter = { _id: new ObjectId(id) }
       const updateDoc = {
-        $set:{
+        $set: {
           name: item.name,
           category: item.category,
           price: item.price,
@@ -151,13 +153,13 @@ async function run() {
           image: item.image
         }
       }
-      const result = await menuCollection.updateOne(filter,updateDoc)
+      const result = await menuCollection.updateOne(filter, updateDoc)
       res.send(result)
     })
 
-    app.delete("/menu/:id",verifyToken,verifyAdmin  ,async(req,res)=>{
+    app.delete("/menu/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await menuCollection.deleteOne(query)
       res.send(result)
     })
@@ -192,50 +194,52 @@ async function run() {
 
     // payment intent
 
-    app.post('/create-payment-intent',async(req,res)=>{
-      const {price} = req.body;
+    app.post('/create-payment-intent', async (req, res) => {
+      const { price } = req.body;
       const amount = Math.round(Number(price) * 100);
 
-      console.log(amount,"amount inside the intent")
+      console.log(amount, "amount inside the intent")
 
 
       const paymentIntent = await stripe.paymentIntents.create({
-        amount:amount,
+        amount: amount,
         currency: "usd",
-        payment_method_types:["card"]
+        payment_method_types: ["card"]
       })
       res.send({
-        clientSecret: paymentIntent.client_secret 
+        clientSecret: paymentIntent.client_secret
       })
     })
 
-    app.get("/payments/:email",verifyToken,async(req,res)=>{
-      const query = {email: req.params.email}
-      if(req.params.email !== req.decoded.email){
-        return res.status(403).send({message: "forbidden access"});
+    app.get("/payments/:email", verifyToken, async (req, res) => {
+      const query = { email: req.params.email }
+      if (req.params.email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
       }
       const result = await paymentCollection.find(query).toArray()
       res.send(result)
     })
     // 
-    app.post('/payments',async(req,res)=>{
+    app.post('/payments',verifyToken, async (req, res) => {
       const payment = req.body;
       const paymentResult = await paymentCollection.insertOne(payment)
 
       // 
 
-      const query = {_id: {
-        $in: payment.carIds.map(id => new ObjectId(id))
-      }}
+      const query = {
+        _id: {
+          $in: payment.carIds.map(id => new ObjectId(id))
+        }
+      }
 
       const deletedresult = await cartCollection.deleteMany(query)
 
-      res.send({paymentResult, deletedresult  })
+      res.send({ paymentResult, deletedresult })
     })
 
 
     // stats or analytics
-    app.get('/admin-stats',verifyToken,verifyAdmin,async(req,res)=>{
+    app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
       const users = await userCollection.estimatedDocumentCount();
       const menuItems = await menuCollection.estimatedDocumentCount()
       const orders = await paymentCollection.estimatedDocumentCount()
@@ -246,7 +250,7 @@ async function run() {
 
       const result = await paymentCollection.aggregate([
         {
-          $group:{
+          $group: {
             _id: null,
             totalRevenue: {
               $sum: "$price"
@@ -264,10 +268,47 @@ async function run() {
     })
 
 
-    
+    // using aggregate pipeline
 
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    app.get("/order-stats",verifyToken,verifyAdmin, async (req, res) => {
+      const result = await paymentCollection.aggregate([
+        {
+          $unwind: "$menuItemIds"
+        },
+        {
+          $lookup: {
+            from: "menu",
+            localField: "menuItemIds",
+            foreignField: "_id",
+            as: "menuItems"
+          }
+        },
+        {
+          $unwind: "$menuItems"
+        },
+        {
+          $group: {
+            _id: "$menuItems.category",
+            quantity: {$sum: 1},
+            revenue: {$sum: "$menuItems.price"}
+          },
+          
+        },
+        {
+          $project:{
+            _id: 0,
+            category: "$_id",
+            quantity:"$quantity",
+            revenue: "$revenue"
+          }
+        }
+      ]).toArray()
+      res.send(result)
+    })
+
+    // comment for vercel
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
 
     // await client.close();
